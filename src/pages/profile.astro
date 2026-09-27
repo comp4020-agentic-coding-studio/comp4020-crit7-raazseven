@@ -1,0 +1,55 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { initials } from "../lib/avatar";
+
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login");
+---
+
+<Layout title="Your profile">
+  <h1>Your profile</h1>
+  <p class="text-slate-600">
+    This is what other attendees see when they look you up from an event's
+    "who's going" list.
+  </p>
+
+  <div class="card mt-4 flex flex-col gap-4">
+    <div class="flex items-center gap-4">
+      <span class="avatar-lg">{initials(user.displayName)}</span>
+      <div>
+        <p class="font-semibold text-slate-900">{user.displayName ?? "No name set yet"}</p>
+        <p class="text-sm text-slate-500">{user.email}</p>
+      </div>
+    </div>
+
+    <form method="post" action="/api/profile" class="flex flex-col gap-4">
+      <div>
+        <label class="field-label" for="displayName">Display name</label>
+        <input
+          id="displayName"
+          name="displayName"
+          class="text-input"
+          maxlength="60"
+          value={user.displayName ?? ""}
+        />
+      </div>
+      <div>
+        <label class="field-label" for="bio">About you</label>
+        <textarea
+          id="bio"
+          name="bio"
+          class="text-input"
+          rows="4"
+          maxlength="500"
+          placeholder="What you're studying, what you're into — anything that helps someone decide to ask you along."
+          >{user.bio ?? ""}</textarea
+        >
+      </div>
+      <button type="submit" class="btn-primary self-start">Save profile</button>
+    </form>
+  </div>
+
+  <p class="mt-4">
+    <a href="/requests">See your companion requests →</a>
+  </p>
+</Layout>

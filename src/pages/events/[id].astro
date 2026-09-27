@@ -1,0 +1,139 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import { initials, nameOf } from "../../lib/avatar";
+import {
+  getCompanionStatus,
+  getEvent,
+  getEventTags,
+  isInterested,
+  listInterestedUsers,
+} from "../../lib/db";
+import { formatWhen, isStartingSoon } from "../../lib/time";
+
+const idParam = Astro.params.id;
+const id = idParam ? Number.parseInt(idParam, 10) : Number.NaN;
+const event = Number.isInteger(id) ? getEvent(id) : undefined;
+
+if (!event) {
+  Astro.response.status = 404;
+}
+
+const user = Astro.locals.user;
+const eventTags = event ? getEventTags(event.id) : [];
+const going = event && user ? isInterested(user.id, event.id) : false;
+const attendees = event ? listInterestedUsers(event.id) : [];
+
+// For each other attendee, what an "ask to go together" button should show —
+// computed here rather than per-item in the template so the markup below
+// just renders a precomputed label/action pair.
+type CompanionView = { label: string; kind: "ask" | "sent" | "reply" | "together" | "none" };
+
+function companionView(attendeeId: string): CompanionView {
+  if (!user || !event) return { label: "", kind: "none" };
+  const request = getCompanionStatus(event.id, user.id, attendeeId);
+  if (!request) return { label: "Ask to go together", kind: "ask" };
+  if (request.status === "accepted") return { label: "🎉 Going together", kind: "together" };
+  if (request.status === "declined") return { label: "", kind: "none" };
+  // pending
+  if (request.fromUserId === user.id) return { label: "Request sent", kind: "sent" };
+  return { label: "They asked you — reply in Requests", kind: "reply" };
+}
+---
+
+<Layout title={event ? event.title : "Event not found"}>
+  {
+    event ? (
+      <Fragment>
+        <div class="card">
+          <div class="flex items-start justify-between gap-2">
+            <h1 class="!mt-0">{event.title}</h1>
+            {isStartingSoon(event.startsAt) && <span class="badge">Starts soon</span>}
+          </div>
+          <p class="text-slate-600">
+            {formatWhen(event.startsAt)} · {event.location}
+          </p>
+          <p class="mt-3">{event.description}</p>
+          {eventTags.length > 0 && (
+            <p class="mt-3 text-xs text-slate-500">
+              {eventTags.map((tag) => tag.label).join(" · ")}
+            </p>
+          )}
+
+          <div class="mt-4">
+            {user ? (
+              <form method="post" action={`/api/events/${event.id}/going`}>
+                <button type="submit" class={going ? "btn-secondary" : "btn-primary"}>
+                  {going ? "I'm no longer going" : "I'm going"}
+                </button>
+              </form>
+            ) : (
+              <a href="/login" class="btn-primary">
+                Log in to say you're going
+              </a>
+            )}
+          </div>
+        </div>
+
+        <h2>Who else is going</h2>
+        {attendees.length === 0 ? (
+          <p class="text-slate-500">Nobody yet — be the first.</p>
+        ) : (
+          <ul class="flex flex-col gap-3">
+            {attendees.map((attendee) => {
+              const isYou = user?.id === attendee.id;
+              const view = isYou ? null : companionView(attendee.id);
+              return (
+                <li class="card flex items-center justify-between gap-4">
+                  <div class="flex items-center gap-3">
+                    <a href={`/u/${attendee.id}`} class="avatar">
+                      {initials(attendee.displayName)}
+                    </a>
+                    <a href={`/u/${attendee.id}`} class="font-medium text-slate-900 no-underline hover:underline">
+                      {nameOf(attendee.displayName)}
+                      {isYou && <span class="text-slate-500"> (you)</span>}
+                    </a>
+                  </div>
+                  {view && view.kind === "ask" && (
+                    <form method="post" action={`/api/events/${event.id}/ask`}>
+                      <input type="hidden" name="toUserId" value={attendee.id} />
+                      <button type="submit" class="btn-secondary shrink-0">
+                        Ask to go together
+                      </button>
+                    </form>
+                  )}
+                  {view && view.kind === "sent" && (
+                    <span class="badge-muted shrink-0">Request sent</span>
+                  )}
+                  {view && view.kind === "reply" && (
+                    <a href="/requests" class="badge shrink-0">
+                      They asked you →
+                    </a>
+                  )}
+                  {view && view.kind === "together" && (
+                    <span class="badge-success shrink-0">Going together</span>
+                  )}
+                  {!user && !isYou && (
+                    <a href="/login" class="text-sm text-slate-500 shrink-0">
+                      Log in to ask
+                    </a>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        <p class="mt-6">
+          <a href="/">← Back to the calendar</a>
+        </p>
+      </Fragment>
+    ) : (
+      <Fragment>
+        <h1>Event not found</h1>
+        <p>
+          <a href="/">← Back to the calendar</a>
+        </p>
+      </Fragment>
+    )
+  }
+</Layout>

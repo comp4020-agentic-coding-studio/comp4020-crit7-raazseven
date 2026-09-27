@@ -1,0 +1,71 @@
+---
+import Layout from "../layouts/Layout.astro";
+
+if (Astro.locals.user) return Astro.redirect("/");
+
+const params = Astro.url.searchParams;
+const error = params.get("error");
+const email = params.get("email") ?? "";
+
+const errorMessage: Record<string, string> = {
+  missing: "Enter your email and a display name.",
+  "weak-password": "Your password needs to be at least 8 characters.",
+  mismatch: "Those two passwords don't match.",
+  "email-taken": "There's already an account with that email — try logging in instead.",
+};
+---
+
+<Layout title="Sign up">
+  <h1>Sign up</h1>
+  <p>
+    Create an account to mark yourself as going to events, see who else is
+    going, and ask someone to come along with you.
+  </p>
+
+  {error && <p class="callout-error">{errorMessage[error] ?? "Something went wrong — try again."}</p>}
+
+  <form method="post" action="/api/auth/signup" class="card mt-4 flex flex-col gap-4">
+    <div>
+      <label class="field-label" for="displayName">Your name</label>
+      <input
+        id="displayName"
+        name="displayName"
+        class="text-input"
+        maxlength="60"
+        required
+        placeholder="How other attendees will see you"
+      />
+    </div>
+    <div>
+      <label class="field-label" for="email">Email</label>
+      <input id="email" name="email" type="email" class="text-input" value={email} required />
+    </div>
+    <div>
+      <label class="field-label" for="password">Password</label>
+      <input
+        id="password"
+        name="password"
+        type="password"
+        class="text-input"
+        minlength="8"
+        required
+      />
+    </div>
+    <div>
+      <label class="field-label" for="confirmPassword">Confirm password</label>
+      <input
+        id="confirmPassword"
+        name="confirmPassword"
+        type="password"
+        class="text-input"
+        minlength="8"
+        required
+      />
+    </div>
+    <button type="submit" class="btn-primary">Create account</button>
+  </form>
+
+  <p class="mt-4 text-sm text-slate-600">
+    Already have an account? <a href="/login">Log in</a>
+  </p>
+</Layout>

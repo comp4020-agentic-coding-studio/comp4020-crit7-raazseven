@@ -1,53 +1,135 @@
 ---
-import { listMessages } from "../lib/db";
-import "../styles.css";
+import Layout from "../layouts/Layout.astro";
+import { getEventTags, getUserTagIds, listEvents, listTags } from "../lib/db";
+import { parseTagIds } from "../lib/tags";
+import { formatWhen, isStartingSoon } from "../lib/time";
 
-const messages = listMessages();
+const user = Astro.locals.user;
+const url = Astro.url;
+
+// A "tags" param present in the URL at all (even empty, via the form's
+// hidden field) means "the filter form was submitted" — that's a transient
+// browse, distinct from the visitor's saved calendar. No "tags" param at all
+// means a plain visit to "/", which falls back to what they saved last time
+// (logged-out visitors have nothing saved, so they just see everything).
+const hasQueryTags = url.searchParams.has("tags");
+const savedTagIds = user ? getUserTagIds(user.id) : [];
+const selectedTagIds = hasQueryTags ? parseTagIds(url.searchParams.getAll("tags")) : savedTagIds;
+
+const allTags = listTags();
+const courseTags = allTags.filter((tag) => tag.kind === "course");
+const interestTags = allTags.filter((tag) => tag.kind === "interest");
+
+const events = listEvents(selectedTagIds);
+
+const viewLabel =
+  selectedTagIds.length > 0
+    ? hasQueryTags
+      ? "Showing events matching your filter"
+      : "Showing your saved calendar"
+    : "Showing every event";
 ---
 
-<!doctype html>
-<html lang="en-AU">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>COMP4020 prototype</title>
-  </head>
-  <body>
-    <nav aria-label="site">
-      <a href="/">Guestbook</a>
-      <a href="/readme/">About</a>
-    </nav>
-    <main>
-      <h1>Guestbook</h1>
-      <p>
-        A minimal full-stack starter: messages live in SQLite on the machine's
-        volume (state survives a reload and a redeploy), and new messages
-        appear in every open tab over a server-sent-events stream — open this
-        page twice and sign it in one. Replace all of this with your own
-        prototype.
-      </p>
-      <form method="post" action="/api/messages">
-        <label for="body">Leave a message</label>
-        <input id="body" name="body" required maxlength="500" />
-        <button>Sign</button>
-      </form>
-      <ul id="messages">
-        {messages.map((message) => <li>{message.body}</li>)}
+<Layout title="ANU events">
+  <h1>Find ANU events — and people to go with</h1>
+  <p class="text-slate-600">
+    Every event ANU has going on, in one place. Filter it to your course or
+    interests, mark yourself as going, and ask someone else who's going to
+    come along with you.
+  </p>
+
+  <form method="get" action="/" class="filter-form card mt-4 flex flex-col gap-4">
+    <fieldset>
+      <legend class="mb-2 text-sm font-semibold text-slate-900">Course</legend>
+      <div class="flex flex-wrap gap-2">
+        {
+          courseTags.map((tag) => (
+            <label class="tag-pill">
+              <input
+                type="checkbox"
+                name="tags"
+                value={tag.id}
+                checked={selectedTagIds.includes(tag.id)}
+                class="sr-only"
+              />
+              {tag.label}
+            </label>
+          ))
+        }
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend class="mb-2 text-sm font-semibold text-slate-900">Interest</legend>
+      <div class="flex flex-wrap gap-2">
+        {
+          interestTags.map((tag) => (
+            <label class="tag-pill">
+              <input
+                type="checkbox"
+                name="tags"
+                value={tag.id}
+                checked={selectedTagIds.includes(tag.id)}
+                class="sr-only"
+              />
+              {tag.label}
+            </label>
+          ))
+        }
+      </div>
+    </fieldset>
+    <input type="hidden" name="tags" value="" />
+    <button type="submit" class="btn-secondary self-start">Apply filter</button>
+  </form>
+
+  <div class="mt-3 flex flex-wrap items-center gap-3">
+    {
+      user ? (
+        <form method="post" action="/api/preferences" class="contents">
+          {selectedTagIds.map((id) => (
+            <input type="hidden" name="tags" value={id} />
+          ))}
+          <input type="hidden" name="tags" value="" />
+          <button type="submit" class="btn-primary">
+            Save as my calendar
+          </button>
+        </form>
+      ) : (
+        <a href="/signup" class="btn-primary">
+          Sign up to save this as your calendar
+        </a>
+      )
+    }
+  </div>
+
+  <p class="mt-6 mb-3 text-sm font-semibold text-slate-500 uppercase">{viewLabel}</p>
+
+  {
+    events.length === 0 ? (
+      <p>No events match this filter.</p>
+    ) : (
+      <ul class="flex flex-col gap-3">
+        {events.map((event) => {
+          const eventTagList = getEventTags(event.id);
+          return (
+            <li>
+              <a href={`/events/${event.id}`} class="event-card">
+                <div class="flex items-start justify-between gap-2">
+                  <p class="event-title">{event.title}</p>
+                  {isStartingSoon(event.startsAt) && <span class="badge">Starts soon</span>}
+                </div>
+                <p class="mt-1 text-sm text-slate-600">
+                  {formatWhen(event.startsAt)} · {event.location}
+                </p>
+                {eventTagList.length > 0 && (
+                  <p class="mt-2 text-xs text-slate-500">
+                    {eventTagList.map((tag) => tag.label).join(" · ")}
+                  </p>
+                )}
+              </a>
+            </li>
+          );
+        })}
       </ul>
-    </main>
-    <script>
-      // The live half of the demo: subscribe to the SSE stream and prepend
-      // messages as they arrive. The form itself needs none of this — its
-      // POST + redirect re-renders the submitting tab from SQLite; this
-      // stream is how every other tab finds out.
-      const list = document.querySelector("#messages");
-      const source = new EventSource("/api/events");
-      source.addEventListener("message", (event) => {
-        const message = JSON.parse(event.data);
-        const item = document.createElement("li");
-        item.textContent = message.body;
-        list?.prepend(item);
-      });
-    </script>
-  </body>
-</html>
+    )
+  }
+</Layout>

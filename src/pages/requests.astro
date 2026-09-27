@@ -1,0 +1,86 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { initials, nameOf } from "../lib/avatar";
+import { listIncomingRequests, listOutgoingRequests } from "../lib/db";
+import { formatWhen } from "../lib/time";
+
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login");
+
+const incoming = listIncomingRequests(user.id);
+const outgoing = listOutgoingRequests(user.id);
+
+const statusLabel: Record<string, string> = {
+  pending: "Waiting for a reply",
+  accepted: "Going together 🎉",
+  declined: "Declined",
+};
+---
+
+<Layout title="Your requests">
+  <h1>Companion requests</h1>
+  <p class="text-slate-600">
+    People who've asked to go with you, and the asks you've sent.
+  </p>
+
+  <h2>Incoming</h2>
+  {
+    incoming.length === 0 ? (
+      <p class="text-slate-500">No pending requests right now.</p>
+    ) : (
+      <ul class="flex flex-col gap-3">
+        {incoming.map((req) => (
+          <li class="card flex items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+              <a href={`/u/${req.fromUser.id}`} class="avatar">
+                {initials(req.fromUser.displayName)}
+              </a>
+              <div>
+                <p>
+                  <a href={`/u/${req.fromUser.id}`}>{nameOf(req.fromUser.displayName)}</a> wants to
+                  go with you to{" "}
+                  <a href={`/events/${req.event.id}`}>{req.event.title}</a>
+                </p>
+                <p class="text-sm text-slate-500">{formatWhen(req.event.startsAt)}</p>
+              </div>
+            </div>
+            <div class="flex shrink-0 gap-2">
+              <form method="post" action={`/api/requests/${req.id}/respond`}>
+                <input type="hidden" name="action" value="accept" />
+                <button type="submit" class="btn-primary">Accept</button>
+              </form>
+              <form method="post" action={`/api/requests/${req.id}/respond`}>
+                <input type="hidden" name="action" value="decline" />
+                <button type="submit" class="btn-ghost">Decline</button>
+              </form>
+            </div>
+          </li>
+        ))}
+      </ul>
+    )
+  }
+
+  <h2>Sent</h2>
+  {
+    outgoing.length === 0 ? (
+      <p class="text-slate-500">You haven't asked anyone yet.</p>
+    ) : (
+      <ul class="flex flex-col gap-3">
+        {outgoing.map((req) => (
+          <li class="card flex items-center gap-3">
+            <a href={`/u/${req.toUser.id}`} class="avatar">
+              {initials(req.toUser.displayName)}
+            </a>
+            <div>
+              <p>
+                You asked <a href={`/u/${req.toUser.id}`}>{nameOf(req.toUser.displayName)}</a> to go
+                to <a href={`/events/${req.event.id}`}>{req.event.title}</a>
+              </p>
+              <p class="text-sm text-slate-500">{statusLabel[req.status]}</p>
+            </div>
+          </li>
+        ))}
+      </ul>
+    )
+  }
+</Layout>

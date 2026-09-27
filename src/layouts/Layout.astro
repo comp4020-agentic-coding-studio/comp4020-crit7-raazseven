@@ -1,0 +1,55 @@
+---
+import "../styles.css";
+import { initials } from "../lib/avatar";
+import { listIncomingRequests } from "../lib/db";
+
+interface Props {
+  title: string;
+}
+
+const { title } = Astro.props;
+const user = Astro.locals.user;
+const pendingCount = user ? listIncomingRequests(user.id).length : 0;
+---
+
+<!doctype html>
+<html lang="en-AU">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+  </head>
+  <body>
+    <nav aria-label="site" class="site-nav">
+      <div class="site-nav-inner">
+        <a href="/" class="brand">🎓 Going Together</a>
+        <div class="flex items-center gap-1">
+          <a href="/readme/" class="nav-link">About</a>
+          {
+            user ? (
+              <Fragment>
+                <a href="/requests" class="nav-link">
+                  Requests{pendingCount > 0 && <span class="badge ml-1">{pendingCount}</span>}
+                </a>
+                <a href="/profile" class="nav-link">
+                  <span class="avatar">{initials(user.displayName)}</span>
+                </a>
+                <form method="post" action="/api/auth/logout">
+                  <button type="submit" class="nav-link">Log out</button>
+                </form>
+              </Fragment>
+            ) : (
+              <Fragment>
+                <a href="/login" class="nav-link">Log in</a>
+                <a href="/signup" class="nav-link-primary">Sign up</a>
+              </Fragment>
+            )
+          }
+        </div>
+      </div>
+    </nav>
+    <main>
+      <slot />
+    </main>
+  </body>
+</html>

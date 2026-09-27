@@ -1,4 +1,5 @@
 import node from "@astrojs/node";
+import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "astro/config";
 
 // Server-rendered output: pages render per request so they can read the
@@ -6,6 +7,9 @@ import { defineConfig } from "astro/config";
 export default defineConfig({
   output: "server",
   adapter: node({ mode: "standalone" }),
+  vite: {
+    plugins: [tailwindcss()],
+  },
   security: {
     // Fly's proxy terminates TLS, so naming the deploy domain is what lets
     // Astro trust x-forwarded-proto and accept same-origin form POSTs.

@@ -1,0 +1,31 @@
+---
+import Layout from "../layouts/Layout.astro";
+
+if (Astro.locals.user) return Astro.redirect("/");
+
+const params = Astro.url.searchParams;
+const error = params.get("error");
+const email = params.get("email") ?? "";
+---
+
+<Layout title="Log in">
+  <h1>Log in</h1>
+
+  {error && <p class="callout-error">Wrong email or password — try again.</p>}
+
+  <form method="post" action="/api/auth/login" class="card mt-4 flex flex-col gap-4">
+    <div>
+      <label class="field-label" for="email">Email</label>
+      <input id="email" name="email" type="email" class="text-input" value={email} required />
+    </div>
+    <div>
+      <label class="field-label" for="password">Password</label>
+      <input id="password" name="password" type="password" class="text-input" required />
+    </div>
+    <button type="submit" class="btn-primary">Log in</button>
+  </form>
+
+  <p class="mt-4 text-sm text-slate-600">
+    New here? <a href="/signup">Sign up</a>
+  </p>
+</Layout>
