@@ -32,12 +32,23 @@ const viewLabel =
 ---
 
 <Layout title="ANU events">
-  <h1>Find ANU events — and people to go with</h1>
-  <p class="text-slate-600">
-    Every event ANU has going on, in one place. Filter it to your course or
-    interests, mark yourself as going, and ask someone else who's going to
-    come along with you.
-  </p>
+  <div class="hero">
+    <img
+      src="https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=1600&q=80&auto=format&fit=crop"
+      alt=""
+      class="hero-photo"
+    />
+    <div class="hero-overlay">
+      <div class="hero-content">
+        <h1 class="!mt-0 !text-white">Find ANU events — and people to go with</h1>
+        <p class="text-slate-100">
+          Every event ANU has going on, in one place. Filter it to your course
+          or interests, mark yourself as going, and ask someone else who's
+          going to come along with you.
+        </p>
+      </div>
+    </div>
+  </div>
 
   <form method="get" action="/" class="filter-form card mt-4 flex flex-col gap-4">
     <fieldset>

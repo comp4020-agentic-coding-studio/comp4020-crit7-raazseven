@@ -1,7 +1,7 @@
 ---
 import "../styles.css";
 import { avatarUrl } from "../lib/avatar";
-import { listIncomingRequests } from "../lib/db";
+import { listIncomingRequests, listMatches } from "../lib/db";
 
 interface Props {
   title: string;
@@ -10,6 +10,7 @@ interface Props {
 const { title } = Astro.props;
 const user = Astro.locals.user;
 const pendingCount = user ? listIncomingRequests(user.id).length : 0;
+const matchCount = user ? listMatches(user.id).length : 0;
 ---
 
 <!doctype html>
@@ -30,6 +31,9 @@ const pendingCount = user ? listIncomingRequests(user.id).length : 0;
               <Fragment>
                 <a href="/requests" class="nav-link">
                   Requests{pendingCount > 0 && <span class="badge ml-1">{pendingCount}</span>}
+                </a>
+                <a href="/chat" class="nav-link">
+                  Chat{matchCount > 0 && <span class="badge ml-1">{matchCount}</span>}
                 </a>
                 <a href="/profile" class="nav-link">
                   <img src={avatarUrl(user.id)} alt="Your avatar" class="avatar" />

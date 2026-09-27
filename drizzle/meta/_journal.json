@@ -36,6 +36,13 @@
       "when": 1790490617366,
       "tag": "0004_even_triathlon",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1790492201169,
+      "tag": "0005_stale_mojo",
+      "breakpoints": true
     }
   ]
 }

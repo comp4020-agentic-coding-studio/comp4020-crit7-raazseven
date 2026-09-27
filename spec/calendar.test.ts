@@ -165,3 +165,69 @@ describe("calendar: seeded companion profiles", () => {
     expect(eventPage).toContain("Going together");
   });
 });
+
+describe("calendar: chatting with a companion", () => {
+  it("lets both sides of a real match see messages the other sent", async () => {
+    const alice = new Visitor();
+    const bob = new Visitor();
+    await alice.signup("Alice Chatter");
+    await bob.signup("Bob Chatter");
+
+    await alice.post("/api/events/4/going");
+    await bob.post("/api/events/4/going");
+
+    const eventPage = await bob.get("/events/4");
+    const match = eventPage.match(/\/u\/([\w-]+)"[^>]*>\s*Alice Chatter/);
+    expect(match).toBeTruthy();
+    const aliceId = match![1];
+
+    await bob.post("/api/events/4/ask", new URLSearchParams({ toUserId: aliceId }));
+
+    const aliceRequests = await alice.get("/requests");
+    const requestIdMatch = aliceRequests.match(/\/api\/requests\/(\d+)\/respond/);
+    expect(requestIdMatch).toBeTruthy();
+    const requestId = requestIdMatch![1];
+
+    await alice.post(`/api/requests/${requestId}/respond`, new URLSearchParams({ action: "accept" }));
+
+    const send = await alice.post(
+      `/api/chat/${requestId}/messages`,
+      new URLSearchParams({ body: "Meet by the fountain?" }),
+    );
+    expect(send.status).toBe(303);
+
+    const aliceThread = await alice.get(`/chat/${requestId}`);
+    expect(aliceThread).toContain("Meet by the fountain?");
+
+    const bobThread = await bob.get(`/chat/${requestId}`);
+    expect(bobThread).toContain("Meet by the fountain?");
+  });
+
+  it("gets a canned reply instantly when messaging a seeded companion", async () => {
+    const visitor = new Visitor();
+    await visitor.signup("Chat With Fake Tester");
+
+    await visitor.post("/api/events/5/going");
+    const discoverPage = await visitor.get("/events/5/discover");
+    const candidateMatch = discoverPage.match(/name="toUserId" value="([\w-]+)"/);
+    expect(candidateMatch).toBeTruthy();
+    const candidateId = candidateMatch![1];
+
+    await visitor.post("/api/events/5/ask", new URLSearchParams({ toUserId: candidateId }));
+
+    const eventPage = await visitor.get("/events/5");
+    const chatLinkMatch = eventPage.match(/\/chat\/(\d+)/);
+    expect(chatLinkMatch).toBeTruthy();
+    const requestId = chatLinkMatch![1];
+
+    await visitor.post(`/api/chat/${requestId}/messages`, new URLSearchParams({ body: "Hey, keen for this!" }));
+
+    const thread = await visitor.get(`/chat/${requestId}`);
+    expect(thread).toContain("Hey, keen for this!");
+    // One of the canned auto-replies should now be in the thread too — the
+    // apostrophes render as HTML entities, so match around them.
+    expect(thread).toMatch(
+      /Sounds good|Can(?:&#39;|')t wait|Keen for this one|Awesome|Great, let(?:&#39;|')s do it/,
+    );
+  });
+});

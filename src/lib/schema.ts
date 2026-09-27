@@ -147,7 +147,26 @@ export const companionRequests = sqliteTable(
   ],
 );
 
+// A message inside one companion match's chat. Scoped to the companion
+// request (not a general DM) — same reasoning as companionRequests being
+// scoped to one event: the relationship that licenses talking is "we agreed
+// to go to this together", not a standing friendship.
+export const messages = sqliteTable("messages", {
+  id: int().primaryKey({ autoIncrement: true }),
+  companionRequestId: int("companion_request_id")
+    .notNull()
+    .references(() => companionRequests.id),
+  senderId: text("sender_id")
+    .notNull()
+    .references(() => users.id),
+  body: text().notNull(),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`(datetime('now'))`),
+});
+
 export type User = typeof users.$inferSelect;
 export type Tag = typeof tags.$inferSelect;
 export type Event = typeof events.$inferSelect;
 export type CompanionRequest = typeof companionRequests.$inferSelect;
+export type Message = typeof messages.$inferSelect;

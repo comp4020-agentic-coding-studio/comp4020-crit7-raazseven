@@ -1,0 +1,81 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import { avatarUrl, nameOf } from "../../lib/avatar";
+import { getMatch, listMessages } from "../../lib/db";
+
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login");
+
+const idParam = Astro.params.id;
+const id = idParam ? Number.parseInt(idParam, 10) : Number.NaN;
+const match = Number.isInteger(id) ? getMatch(id, user.id) : undefined;
+
+if (!match) {
+  Astro.response.status = 404;
+}
+
+const thread = match ? listMessages(match.request.id) : [];
+---
+
+<Layout title={match ? `Chat with ${nameOf(match.other.displayName)}` : "Chat not found"}>
+  {
+    match ? (
+      <Fragment>
+        <p class="mb-4">
+          <a href="/chat">← Your chats</a>
+        </p>
+        <div class="mb-4 flex items-center gap-3">
+          <a href={`/u/${match.other.id}`}>
+            <img
+              src={avatarUrl(match.other.id)}
+              alt={`${nameOf(match.other.displayName)}'s avatar`}
+              class="avatar-lg"
+            />
+          </a>
+          <div>
+            <p class="text-lg font-semibold text-slate-900">
+              <a href={`/u/${match.other.id}`}>{nameOf(match.other.displayName)}</a>
+            </p>
+            <p class="text-sm text-slate-500">
+              Going together to <a href={`/events/${match.event.id}`}>{match.event.title}</a>
+            </p>
+          </div>
+        </div>
+
+        <div class="chat-thread">
+          {thread.length === 0 ? (
+            <p class="text-slate-500">No messages yet — say hi 👋</p>
+          ) : (
+            thread.map((message) => {
+              const mine = message.senderId === user.id;
+              return (
+                <div class={mine ? "chat-bubble chat-bubble-mine" : "chat-bubble chat-bubble-theirs"}>
+                  {message.body}
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        <form method="post" action={`/api/chat/${match.request.id}/messages`} class="chat-composer">
+          <input
+            type="text"
+            name="body"
+            class="text-input"
+            placeholder="Write a message…"
+            required
+            autocomplete="off"
+          />
+          <button type="submit" class="btn-primary shrink-0">Send</button>
+        </form>
+      </Fragment>
+    ) : (
+      <Fragment>
+        <h1>Chat not found</h1>
+        <p>
+          <a href="/chat">← Your chats</a>
+        </p>
+      </Fragment>
+    )
+  }
+</Layout>

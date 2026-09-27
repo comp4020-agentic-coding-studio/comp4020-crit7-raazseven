@@ -109,7 +109,9 @@ const candidateCount =
                     </a>
                   )}
                   {view && view.kind === "together" && (
-                    <span class="badge-success shrink-0">Going together</span>
+                    <a href={`/chat/${view.requestId}`} class="badge-success shrink-0">
+                      Going together — chat →
+                    </a>
                   )}
                   {!user && !isYou && (
                     <a href="/login" class="text-sm text-slate-500 shrink-0">

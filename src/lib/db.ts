@@ -9,12 +9,14 @@ import { newSessionId, sessionExpiry } from "./auth";
 import {
   type CompanionRequest,
   type Event,
+  type Message,
   type Tag,
   type User,
   companionRequests,
   eventTags,
   events,
   interests,
+  messages,
   sessions,
   tags,
   userTags,
@@ -42,7 +44,7 @@ migrate(db, { migrationsFolder: "./drizzle" });
 seedIfEmpty();
 seedFakeProfilesIfEmpty();
 
-export type { Event, Tag, User };
+export type { Event, Message, Tag, User };
 
 // --- users ---------------------------------------------------------------
 
@@ -311,6 +313,109 @@ export function listOutgoingRequests(
     .where(eq(companionRequests.fromUserId, userId))
     .orderBy(asc(companionRequests.createdAt))
     .all();
+}
+
+// --- chat --------------------------------------------------------------
+
+// An accepted companion request, from one participant's point of view — the
+// "other" person and the event they're going to together. This is what
+// backs both the chat inbox and the authorization check on a single thread.
+export type Match = { request: CompanionRequest; other: Attendee; event: Event };
+
+export function listMatches(userId: string): Match[] {
+  const asAsker = db
+    .select({
+      request: companionRequests,
+      other: { id: users.id, displayName: users.displayName },
+      event: events,
+    })
+    .from(companionRequests)
+    .innerJoin(users, eq(users.id, companionRequests.toUserId))
+    .innerJoin(events, eq(events.id, companionRequests.eventId))
+    .where(and(eq(companionRequests.fromUserId, userId), eq(companionRequests.status, "accepted")))
+    .all();
+
+  const asRecipient = db
+    .select({
+      request: companionRequests,
+      other: { id: users.id, displayName: users.displayName },
+      event: events,
+    })
+    .from(companionRequests)
+    .innerJoin(users, eq(users.id, companionRequests.fromUserId))
+    .innerJoin(events, eq(events.id, companionRequests.eventId))
+    .where(and(eq(companionRequests.toUserId, userId), eq(companionRequests.status, "accepted")))
+    .all();
+
+  return [...asAsker, ...asRecipient].sort((a, b) =>
+    b.request.updatedAt.localeCompare(a.request.updatedAt),
+  );
+}
+
+// The authorization check every chat route relies on: a match only exists
+// (from this user's point of view) if the request was accepted and this
+// user is one of its two participants.
+export function getMatch(requestId: number, userId: string): Match | undefined {
+  const request = db
+    .select()
+    .from(companionRequests)
+    .where(eq(companionRequests.id, requestId))
+    .get();
+  if (!request || request.status !== "accepted") return undefined;
+  if (request.fromUserId !== userId && request.toUserId !== userId) return undefined;
+
+  const otherId = request.fromUserId === userId ? request.toUserId : request.fromUserId;
+  const other = getUserById(otherId);
+  const event = getEvent(request.eventId);
+  if (!other || !event) return undefined;
+
+  return { request, other: { id: other.id, displayName: other.displayName }, event };
+}
+
+export function listMessages(companionRequestId: number): Message[] {
+  return db
+    .select()
+    .from(messages)
+    .where(eq(messages.companionRequestId, companionRequestId))
+    .orderBy(asc(messages.createdAt))
+    .all();
+}
+
+export function sendMessage(companionRequestId: number, senderId: string, body: string): Message {
+  const message = db.insert(messages).values({ companionRequestId, senderId, body }).returning().get();
+  db.update(companionRequests)
+    .set({ updatedAt: new Date().toISOString() })
+    .where(eq(companionRequests.id, companionRequestId))
+    .run();
+  return message;
+}
+
+const FAKE_REPLIES = [
+  "Sounds good, see you there! 🎉",
+  "Can't wait — I'll meet you out front.",
+  "Yes! Keen for this one.",
+  "Awesome, this'll be fun 🙌",
+  "Great, let's do it!",
+];
+
+// A seeded profile can never log in to type a real reply, so without this a
+// "match" leads to a chat thread that just sits silent — the opposite of the
+// warm/friendly feel the whole seeded-profiles idea is for. Fires once per
+// thread (checked below), not on every message the real user sends.
+export function maybeSendFakeReply(companionRequestId: number, otherUserId: string): void {
+  const other = getUserById(otherUserId);
+  if (!other?.isFake) return;
+
+  const alreadyReplied = db
+    .select({ id: messages.id })
+    .from(messages)
+    .where(and(eq(messages.companionRequestId, companionRequestId), eq(messages.senderId, otherUserId)))
+    .limit(1)
+    .all();
+  if (alreadyReplied.length > 0) return;
+
+  const reply = FAKE_REPLIES[companionRequestId % FAKE_REPLIES.length];
+  sendMessage(companionRequestId, otherUserId, reply);
 }
 
 // --- seed ------------------------------------------------------------------

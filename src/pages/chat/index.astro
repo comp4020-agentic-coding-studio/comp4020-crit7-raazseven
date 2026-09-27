@@ -1,0 +1,49 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import { avatarUrl, nameOf } from "../../lib/avatar";
+import { listMatches, listMessages } from "../../lib/db";
+
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login");
+
+const matches = listMatches(user.id);
+const previews = matches.map((match) => {
+  const thread = listMessages(match.request.id);
+  const last = thread.at(-1);
+  return { ...match, preview: last ? last.body : null };
+});
+---
+
+<Layout title="Your chats">
+  <h1>Your chats</h1>
+  <p class="text-slate-600">Everyone you're going together with — pick a thread to say hi.</p>
+
+  {
+    previews.length === 0 ? (
+      <p class="callout mt-4">
+        No matches yet — ask someone to go together and you'll be able to chat here.
+      </p>
+    ) : (
+      <ul class="mt-4 flex flex-col gap-3">
+        {previews.map((match) => (
+          <li>
+            <a href={`/chat/${match.request.id}`} class="card flex items-center gap-3 no-underline hover:shadow-md">
+              <img
+                src={avatarUrl(match.other.id)}
+                alt={`${nameOf(match.other.displayName)}'s avatar`}
+                class="avatar"
+              />
+              <div class="min-w-0">
+                <p class="font-medium text-slate-900">
+                  {nameOf(match.other.displayName)}
+                  <span class="font-normal text-slate-500"> · {match.event.title}</span>
+                </p>
+                <p class="truncate text-sm text-slate-500">{match.preview ?? "Say hi 👋"}</p>
+              </div>
+            </a>
+          </li>
+        ))}
+      </ul>
+    )
+  }
+</Layout>

@@ -84,7 +84,13 @@ const statusLabel: Record<string, string> = {
                 You asked <a href={`/u/${req.toUser.id}`}>{nameOf(req.toUser.displayName)}</a> to go
                 to <a href={`/events/${req.event.id}`}>{req.event.title}</a>
               </p>
-              <p class="text-sm text-slate-500">{statusLabel[req.status]}</p>
+              {req.status === "accepted" ? (
+                <a href={`/chat/${req.id}`} class="text-sm">
+                  {statusLabel[req.status]} — chat →
+                </a>
+              ) : (
+                <p class="text-sm text-slate-500">{statusLabel[req.status]}</p>
+              )}
             </div>
           </li>
         ))}
