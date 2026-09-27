@@ -1,55 +1,5 @@
-import { describe, expect, inject, it } from "vitest";
-
-// Drives the running app over HTTP, one simulated visitor (cookie jar) per
-// test actor — mirrors how a real browser would behave, since Astro tracks
-// "current visitor" purely through the session cookie the middleware reads.
-const baseUrl = inject("baseUrl");
-
-let counter = 0;
-function uniqueEmail(): string {
-  counter += 1;
-  return `visitor-${Date.now()}-${counter}@example.com`;
-}
-
-class Visitor {
-  private cookie?: string;
-  readonly email = uniqueEmail();
-
-  async fetch(path: string, init: RequestInit = {}): Promise<Response> {
-    const headers = new Headers(init.headers);
-    if (this.cookie) headers.set("cookie", this.cookie);
-    // Astro checks form POSTs carry a same-origin Origin header (CSRF
-    // protection); a real browser sends it automatically, fetch doesn't.
-    if (init.method === "POST") headers.set("origin", baseUrl);
-    const res = await fetch(new URL(path, baseUrl), { ...init, headers, redirect: "manual" });
-    const setCookie = res.headers.get("set-cookie");
-    if (setCookie) this.cookie = setCookie.split(";")[0];
-    return res;
-  }
-
-  post(path: string, body: URLSearchParams = new URLSearchParams()): Promise<Response> {
-    return this.fetch(path, { method: "POST", body });
-  }
-
-  async get(path: string): Promise<string> {
-    const res = await this.fetch(path);
-    return res.text();
-  }
-
-  async signup(displayName: string): Promise<void> {
-    const res = await this.post(
-      "/api/auth/signup",
-      new URLSearchParams({
-        displayName,
-        email: this.email,
-        password: "correct-horse",
-        confirmPassword: "correct-horse",
-      }),
-    );
-    expect(res.status).toBe(303);
-    expect(res.headers.get("location")).toBe("/");
-  }
-}
+import { describe, expect, it } from "vitest";
+import { Visitor } from "./visitor";
 
 describe("calendar: saving a filter persists as your default view", () => {
   it("survives a reload — the spec's 'create something, and it's still there'", async () => {
