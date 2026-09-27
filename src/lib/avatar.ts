@@ -1,11 +1,18 @@
-// A display name is optional at the schema level (old rows, or a blank
-// profile) but everyone rendering an avatar needs *something* to show.
-export function initials(displayName: string | null | undefined): string {
-  const trimmed = displayName?.trim();
-  if (!trimmed) return "?";
-  const parts = trimmed.split(/\s+/).filter(Boolean);
-  const letters = parts.length === 1 ? parts[0].slice(0, 2) : parts[0][0] + parts[1][0];
-  return letters.toUpperCase();
+// Illustrated, deterministic-per-id avatars — not real photos of real
+// people. That matters most for the seeded fake profiles (see
+// seedFakeProfilesIfEmpty in src/lib/db.ts): using scraped photos of real
+// strangers as fake dating-style profile pictures would be an impersonation
+// problem, so every profile (real or fake) gets a generated illustration
+// keyed off their user id instead.
+export function avatarUrl(userId: string): string {
+  return `https://api.dicebear.com/9.x/notionists/svg?seed=${encodeURIComponent(userId)}`;
+}
+
+// Decorative cover photo for an event card — keyed off the event id so it's
+// stable across renders. Purely atmospheric (the title next to it already
+// says what the event is), so it's rendered with alt="" everywhere.
+export function eventCoverUrl(eventId: number): string {
+  return `https://picsum.photos/seed/event-${eventId}/640/360`;
 }
 
 export function nameOf(displayName: string | null | undefined): string {

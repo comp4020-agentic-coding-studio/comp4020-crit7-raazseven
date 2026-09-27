@@ -1,0 +1,1 @@
+ALTER TABLE `users` ADD `is_fake` integer DEFAULT false NOT NULL;

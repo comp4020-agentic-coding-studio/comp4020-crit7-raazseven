@@ -1,6 +1,6 @@
 ---
 import Layout from "../layouts/Layout.astro";
-import { initials, nameOf } from "../lib/avatar";
+import { avatarUrl, nameOf } from "../lib/avatar";
 import { listIncomingRequests, listOutgoingRequests } from "../lib/db";
 import { formatWhen } from "../lib/time";
 
@@ -32,8 +32,12 @@ const statusLabel: Record<string, string> = {
         {incoming.map((req) => (
           <li class="card flex items-center justify-between gap-4">
             <div class="flex items-center gap-3">
-              <a href={`/u/${req.fromUser.id}`} class="avatar">
-                {initials(req.fromUser.displayName)}
+              <a href={`/u/${req.fromUser.id}`}>
+                <img
+                  src={avatarUrl(req.fromUser.id)}
+                  alt={`${nameOf(req.fromUser.displayName)}'s avatar`}
+                  class="avatar"
+                />
               </a>
               <div>
                 <p>
@@ -68,8 +72,12 @@ const statusLabel: Record<string, string> = {
       <ul class="flex flex-col gap-3">
         {outgoing.map((req) => (
           <li class="card flex items-center gap-3">
-            <a href={`/u/${req.toUser.id}`} class="avatar">
-              {initials(req.toUser.displayName)}
+            <a href={`/u/${req.toUser.id}`}>
+              <img
+                src={avatarUrl(req.toUser.id)}
+                alt={`${nameOf(req.toUser.displayName)}'s avatar`}
+                class="avatar"
+              />
             </a>
             <div>
               <p>

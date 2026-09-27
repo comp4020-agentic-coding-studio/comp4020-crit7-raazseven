@@ -109,8 +109,11 @@ describe("calendar: asking someone to go together", () => {
     await bob.post("/api/events/2/going");
 
     // Bob asks Alice — need Alice's user id, which the event page links to.
+    // Match her name specifically rather than "the first /u/ link on the
+    // page": the attendee list also includes the seeded fake profiles, whose
+    // interests are older than this test's, so they can sort ahead of Alice.
     const eventPage = await bob.get("/events/2");
-    const match = eventPage.match(/\/u\/([\w-]+)/);
+    const match = eventPage.match(/\/u\/([\w-]+)"[^>]*>\s*Alice Companion/);
     expect(match).toBeTruthy();
     const aliceId = match![1];
 
@@ -133,5 +136,32 @@ describe("calendar: asking someone to go together", () => {
 
     const eventPageAfter = await alice.get("/events/2");
     expect(eventPageAfter).toContain("Going together");
+  });
+});
+
+describe("calendar: seeded companion profiles", () => {
+  it("shows on the discover page and matches instantly when asked", async () => {
+    const visitor = new Visitor();
+    await visitor.signup("Discover Tester");
+
+    await visitor.post("/api/events/3/going");
+
+    const discoverPage = await visitor.get("/events/3/discover");
+    expect(discoverPage).toContain("Find someone to go with");
+
+    const candidateMatch = discoverPage.match(/name="toUserId" value="([\w-]+)"/);
+    expect(candidateMatch).toBeTruthy();
+    const candidateId = candidateMatch![1];
+
+    const ask = await visitor.post(
+      "/api/events/3/ask",
+      new URLSearchParams({ toUserId: candidateId }),
+    );
+    expect(ask.status).toBe(303);
+
+    // A seeded profile can't log in to accept, so this resolves immediately —
+    // no second actor needed, unlike the real-user test above.
+    const eventPage = await visitor.get("/events/3");
+    expect(eventPage).toContain("Going together");
   });
 });

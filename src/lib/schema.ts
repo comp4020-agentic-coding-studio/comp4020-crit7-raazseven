@@ -18,6 +18,10 @@ export const users = sqliteTable("users", {
   passwordHash: text("password_hash"),
   displayName: text("display_name"),
   bio: text(),
+  // Seeded companion profiles nobody can log in as — flagged so the ask flow
+  // can auto-accept on their behalf (see src/pages/api/events/[id]/ask.ts)
+  // instead of leaving a request pending forever.
+  isFake: int("is_fake", { mode: "boolean" }).notNull().default(false),
   createdAt: text("created_at")
     .notNull()
     .default(sql`(datetime('now'))`),

@@ -1,0 +1,152 @@
+---
+import Layout from "../../../layouts/Layout.astro";
+import { avatarUrl, nameOf } from "../../../lib/avatar";
+import { companionView } from "../../../lib/companion";
+import { getEvent, isInterested, listInterestedUsers } from "../../../lib/db";
+
+const idParam = Astro.params.id;
+const id = idParam ? Number.parseInt(idParam, 10) : Number.NaN;
+const event = Number.isInteger(id) ? getEvent(id) : undefined;
+
+if (!event) {
+  Astro.response.status = 404;
+}
+
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login");
+
+const going = event ? isInterested(user.id, event.id) : false;
+
+const candidates = event
+  ? listInterestedUsers(event.id).filter(
+      (a) => a.id !== user.id && companionView(user, event.id, a.id).kind === "ask",
+    )
+  : [];
+---
+
+<Layout title={event ? `Find someone for ${event.title}` : "Event not found"}>
+  {
+    event ? (
+      <Fragment>
+        <h1>Find someone to go with</h1>
+        <p class="text-slate-600">
+          Everyone below is already going to <a href={`/events/${event.id}`}>{event.title}</a>{" "}
+          and hasn't been asked yet. Ask the ones you'd like to go with — skip the rest.
+        </p>
+
+        {!going ? (
+          <p class="callout mt-4">
+            You need to mark yourself as going to this event first.{" "}
+            <a href={`/events/${event.id}`}>Go back and say you're going →</a>
+          </p>
+        ) : candidates.length === 0 ? (
+          <p class="callout mt-4">
+            Nobody left to ask right now — check back later, or{" "}
+            <a href={`/events/${event.id}`}>see the full attendee list →</a>.
+          </p>
+        ) : (
+          <div class="swipe-stack mt-4" id="swipe-stack">
+            {candidates.map((candidate) => (
+              <div class="swipe-card card" data-candidate-card>
+                <img
+                  src={avatarUrl(candidate.id)}
+                  alt={`${nameOf(candidate.displayName)}'s avatar`}
+                  class="swipe-card-photo"
+                />
+                <p class="mt-3 text-lg font-semibold text-slate-900">
+                  {nameOf(candidate.displayName)}
+                </p>
+                {candidate.bio && <p class="mt-1 text-sm text-slate-600">{candidate.bio}</p>}
+
+                <div class="swipe-actions">
+                  <button type="button" class="swipe-btn" data-skip aria-label="Skip">
+                    ✕
+                  </button>
+                  <form method="post" action={`/api/events/${event.id}/ask`}>
+                    <input type="hidden" name="toUserId" value={candidate.id} />
+                    <button type="submit" class="swipe-btn" aria-label="Ask to go together">
+                      💛
+                    </button>
+                  </form>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <p class="mt-6">
+          <a href={`/events/${event.id}`}>← Back to the event</a>
+        </p>
+
+        <script>
+          // Progressive enhancement only: without this script the cards above
+          // render as a plain stacked list, each with its own working "ask"
+          // button — a full, accessible fallback, not a decoration. With JS,
+          // the stack becomes a one-card-at-a-time swipe, still driven by the
+          // same buttons plus optional pointer-drag.
+          const stack = document.getElementById("swipe-stack");
+          if (stack) {
+            stack.classList.add("js-stack");
+            const cards = Array.from(stack.querySelectorAll<HTMLElement>("[data-candidate-card]"));
+
+            function showTop() {
+              cards.forEach((card, i) => {
+                card.hidden = i !== 0;
+                card.style.transform = "";
+                card.style.opacity = "1";
+              });
+            }
+
+            function skipTop() {
+              const card = cards.shift();
+              if (card) card.remove();
+              showTop();
+            }
+
+            showTop();
+
+            for (const card of cards) {
+              const skipBtn = card.querySelector<HTMLButtonElement>("[data-skip]");
+              skipBtn?.addEventListener("click", skipTop);
+
+              let startX = 0;
+              let dragging = false;
+
+              card.addEventListener("pointerdown", (e) => {
+                dragging = true;
+                startX = e.clientX;
+                card.setPointerCapture(e.pointerId);
+              });
+              card.addEventListener("pointermove", (e) => {
+                if (!dragging) return;
+                const dx = e.clientX - startX;
+                card.style.transform = `translateX(${dx}px) rotate(${dx / 20}deg)`;
+              });
+              const endDrag = (e: PointerEvent) => {
+                if (!dragging) return;
+                dragging = false;
+                const dx = e.clientX - startX;
+                if (dx < -120) {
+                  skipTop();
+                } else if (dx > 120) {
+                  card.querySelector<HTMLFormElement>("form")?.requestSubmit();
+                } else {
+                  card.style.transform = "";
+                }
+              };
+              card.addEventListener("pointerup", endDrag);
+              card.addEventListener("pointercancel", endDrag);
+            }
+          }
+        </script>
+      </Fragment>
+    ) : (
+      <Fragment>
+        <h1>Event not found</h1>
+        <p>
+          <a href="/">← Back to the calendar</a>
+        </p>
+      </Fragment>
+    )
+  }
+</Layout>

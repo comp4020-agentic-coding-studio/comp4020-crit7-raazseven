@@ -40,6 +40,7 @@ export const db = drizzle(client);
 migrate(db, { migrationsFolder: "./drizzle" });
 
 seedIfEmpty();
+seedFakeProfilesIfEmpty();
 
 export type { Event, Tag, User };
 
@@ -191,11 +192,13 @@ export function toggleInterest(userId: string, eventId: number): boolean {
 
 // The public shape of an attendee — never the email or password hash,
 // whether the caller is browsing anonymously or looking at their own event.
-export type Attendee = { id: string; displayName: string | null };
+// bio is optional on the type since most callers (companion-request lists)
+// don't need it and don't select it — only the discover page does.
+export type Attendee = { id: string; displayName: string | null; bio?: string | null };
 
 export function listInterestedUsers(eventId: number): Attendee[] {
   return db
-    .select({ id: users.id, displayName: users.displayName })
+    .select({ id: users.id, displayName: users.displayName, bio: users.bio })
     .from(users)
     .innerJoin(interests, eq(interests.userId, users.id))
     .where(eq(interests.eventId, eventId))
@@ -513,5 +516,56 @@ function seedIfEmpty(): void {
         if (tagId) tx.insert(eventTags).values({ eventId: row.id, tagId }).run();
       }
     }
+  });
+}
+
+// Companion profiles nobody can log in as (no email/password), so the
+// social features have visible activity from the start instead of an empty
+// "nobody's going yet" everywhere. Gated on its own guard (isFake users, not
+// events) — the events table is already seeded on a live deploy, so tying
+// this to seedIfEmpty's guard would mean it never runs there.
+function seedFakeProfilesIfEmpty(): void {
+  const existing = db.select({ id: users.id }).from(users).where(eq(users.isFake, true)).limit(1).all();
+  if (existing.length > 0) return;
+
+  const fakeProfiles: Array<{ displayName: string; bio: string }> = [
+    { displayName: "Priya Nair", bio: "Second-year CS, always up for trivia." },
+    { displayName: "Jack Sullivan", bio: "Postgrad in engineering, into pickup basketball." },
+    { displayName: "Mei Chen", bio: "Loves photography and finding new coffee spots on campus." },
+    { displayName: "Liam O'Connor", bio: "Studying law, plays in a covers band on weekends." },
+    { displayName: "Amara Okafor", bio: "PhD student, will talk your ear off about AI research." },
+    { displayName: "Noah Fitzgerald", bio: "First-year, still figuring out which clubs to join." },
+    { displayName: "Sana Malik", bio: "Runs the odd 5k, always keen for a social sport." },
+    { displayName: "Tom Bennett", bio: "Music student, rehearses more than he sleeps." },
+    { displayName: "Isla Robertson", bio: "Environmental science, into the sustainability group." },
+    { displayName: "Ravi Kapoor", bio: "Career-fair regular, job-hunting and networking." },
+    { displayName: "Chloe Ahmed", bio: "Undergrad, mostly here for the free food at events." },
+    { displayName: "Ethan Walsh", bio: "Building a startup idea, always looking for collaborators." },
+    { displayName: "Grace Thompson", bio: "Choir member, happy to chat about anything music." },
+    { displayName: "Zara Hussain", bio: "Research assistant, loves a good seminar." },
+    { displayName: "Oliver Ward", bio: "Into board games and building-night hackathons." },
+    { displayName: "Freya Mitchell", bio: "New to Canberra, trying to meet people through events." },
+  ];
+
+  db.transaction((tx) => {
+    const seededUsers = fakeProfiles.map((profile) =>
+      tx
+        .insert(users)
+        .values({ id: randomUUID(), displayName: profile.displayName, bio: profile.bio, isFake: true })
+        .returning()
+        .get(),
+    );
+
+    const allEvents = tx.select({ id: events.id }).from(events).all();
+
+    seededUsers.forEach((seededUser, userIdx) => {
+      allEvents.forEach((event, eventIdx) => {
+        // Roughly two out of every three events, deterministic per profile —
+        // enough that most events have a handful of fake attendees already.
+        if ((userIdx + eventIdx) % 3 !== 0) {
+          tx.insert(interests).values({ userId: seededUser.id, eventId: event.id }).run();
+        }
+      });
+    });
   });
 }

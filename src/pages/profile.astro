@@ -1,6 +1,6 @@
 ---
 import Layout from "../layouts/Layout.astro";
-import { initials } from "../lib/avatar";
+import { avatarUrl } from "../lib/avatar";
 
 const user = Astro.locals.user;
 if (!user) return Astro.redirect("/login");
@@ -15,7 +15,7 @@ if (!user) return Astro.redirect("/login");
 
   <div class="card mt-4 flex flex-col gap-4">
     <div class="flex items-center gap-4">
-      <span class="avatar-lg">{initials(user.displayName)}</span>
+      <img src={avatarUrl(user.id)} alt="Your avatar" class="avatar-lg" />
       <div>
         <p class="font-semibold text-slate-900">{user.displayName ?? "No name set yet"}</p>
         <p class="text-sm text-slate-500">{user.email}</p>

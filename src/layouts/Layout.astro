@@ -1,6 +1,6 @@
 ---
 import "../styles.css";
-import { initials } from "../lib/avatar";
+import { avatarUrl } from "../lib/avatar";
 import { listIncomingRequests } from "../lib/db";
 
 interface Props {
@@ -32,7 +32,7 @@ const pendingCount = user ? listIncomingRequests(user.id).length : 0;
                   Requests{pendingCount > 0 && <span class="badge ml-1">{pendingCount}</span>}
                 </a>
                 <a href="/profile" class="nav-link">
-                  <span class="avatar">{initials(user.displayName)}</span>
+                  <img src={avatarUrl(user.id)} alt="Your avatar" class="avatar" />
                 </a>
                 <form method="post" action="/api/auth/logout">
                   <button type="submit" class="nav-link">Log out</button>

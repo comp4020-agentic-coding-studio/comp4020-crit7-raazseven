@@ -1,5 +1,6 @@
 ---
 import Layout from "../layouts/Layout.astro";
+import { eventCoverUrl } from "../lib/avatar";
 import { getEventTags, getUserTagIds, listEvents, listTags } from "../lib/db";
 import { parseTagIds } from "../lib/tags";
 import { formatWhen, isStartingSoon } from "../lib/time";
@@ -107,12 +108,13 @@ const viewLabel =
     events.length === 0 ? (
       <p>No events match this filter.</p>
     ) : (
-      <ul class="flex flex-col gap-3">
+      <ul class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {events.map((event) => {
           const eventTagList = getEventTags(event.id);
           return (
             <li>
               <a href={`/events/${event.id}`} class="event-card">
+                <img src={eventCoverUrl(event.id)} alt="" class="event-cover" />
                 <div class="flex items-start justify-between gap-2">
                   <p class="event-title">{event.title}</p>
                   {isStartingSoon(event.startsAt) && <span class="badge">Starts soon</span>}

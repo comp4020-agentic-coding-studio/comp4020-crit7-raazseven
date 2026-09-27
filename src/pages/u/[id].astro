@@ -1,6 +1,6 @@
 ---
 import Layout from "../../layouts/Layout.astro";
-import { initials } from "../../lib/avatar";
+import { avatarUrl } from "../../lib/avatar";
 import { getUserById } from "../../lib/db";
 
 const id = Astro.params.id ?? "";
@@ -21,7 +21,7 @@ const isYou = Astro.locals.user?.id === id;
     profile ? (
       <Fragment>
         <div class="card flex items-center gap-4">
-          <span class="avatar-lg">{initials(profile.displayName)}</span>
+          <img src={avatarUrl(profile.id)} alt={`${profile.displayName ?? "This attendee"}'s avatar`} class="avatar-lg" />
           <div>
             <h1 class="!mt-0">{profile.displayName ?? "No name set yet"}</h1>
             <p class="text-sm text-slate-500">Member since {memberSince}</p>
