@@ -18,6 +18,8 @@ export const users = sqliteTable("users", {
   passwordHash: text("password_hash"),
   displayName: text("display_name"),
   bio: text(),
+  pronouns: text(),
+  program: text(), // e.g. "3rd-year Computer Science", "PhD, Engineering"
   // Seeded companion profiles nobody can log in as — flagged so the ask flow
   // can auto-accept on their behalf (see src/pages/api/events/[id]/ask.ts)
   // instead of leaving a request pending forever.
@@ -164,6 +166,22 @@ export const messages = sqliteTable("messages", {
     .notNull()
     .default(sql`(datetime('now'))`),
 });
+
+// A user's own self-described interests, shown on their profile — distinct
+// from userTags (their saved calendar filter): this says who they are, that
+// says what events they want to see.
+export const profileInterests = sqliteTable(
+  "profile_interests",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    tagId: int("tag_id")
+      .notNull()
+      .references(() => tags.id),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.tagId] })],
+);
 
 export type User = typeof users.$inferSelect;
 export type Tag = typeof tags.$inferSelect;

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { expect, inject } from "vitest";
 
 // Drives the running app over HTTP, one simulated visitor (cookie jar) per
@@ -7,10 +8,12 @@ import { expect, inject } from "vitest";
 // real, built server and the same shared sqlite database.
 export const baseUrl = inject("baseUrl");
 
-let counter = 0;
+// Test files run as separate isolated workers, each with its own copy of
+// this module — a Date.now()+counter scheme can still collide when two
+// files spin up their first visitor in the same millisecond. A UUID doesn't
+// need cross-worker coordination to stay unique.
 export function uniqueEmail(): string {
-  counter += 1;
-  return `visitor-${Date.now()}-${counter}@example.com`;
+  return `visitor-${randomUUID()}@example.com`;
 }
 
 type SignupFields = Partial<{
@@ -70,5 +73,31 @@ export class Visitor {
     const res = await this.signupRaw({ displayName });
     expect(res.status).toBe(303);
     expect(res.headers.get("location")).toBe("/");
+    await this.completeProfile(displayName);
+  }
+
+  // Fills in the fields the profile-completeness gate (src/middleware.ts)
+  // requires, so a signed-up test actor reads as "fully onboarded" and can
+  // browse the rest of the app immediately, same as every other spec relies
+  // on. Picks the first rendered interest-tag checkbox rather than a fixed
+  // id, so it stays correct as the seeded tag list grows. Re-sends
+  // displayName since the API route replaces it wholesale on every save.
+  async completeProfile(displayName: string): Promise<void> {
+    const page = await this.get("/profile");
+    const tagMatch = page.match(/name="tags"\s+value="(\d+)"/);
+    expect(tagMatch).toBeTruthy();
+    const tagId = tagMatch![1];
+
+    const res = await this.post(
+      "/api/profile",
+      new URLSearchParams({
+        displayName,
+        pronouns: "they/them",
+        program: "Test program",
+        bio: "Filled in for tests.",
+        tags: tagId,
+      }),
+    );
+    expect(res.status).toBe(303);
   }
 }

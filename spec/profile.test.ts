@@ -42,4 +42,41 @@ describe("profile: editing it persists to the shared database", () => {
     const profile = await visitor.get("/profile");
     expect(profile).toContain("No name set yet");
   });
+
+  it("saves pronouns, program and interest tags, visible to another visitor", async () => {
+    const owner = new Visitor();
+    await owner.signup("Interests Owner");
+
+    const profilePage = await owner.get("/profile");
+    const tagMatches = [...profilePage.matchAll(/name="tags"\s+value="(\d+)"/g)];
+    expect(tagMatches.length).toBeGreaterThan(1);
+    const [firstTagId, secondTagId] = tagMatches.map((m) => m[1]);
+
+    const save = await owner.post(
+      "/api/profile",
+      new URLSearchParams([
+        ["displayName", "Interests Owner"],
+        ["pronouns", "she/her"],
+        ["program", "3rd-year Computer Science"],
+        ["bio", "Here for the events."],
+        ["tags", firstTagId],
+        ["tags", secondTagId],
+      ]),
+    );
+    expect(save.status).toBe(303);
+
+    const ownProfile = await owner.get("/profile");
+    expect(ownProfile).toContain("she/her");
+    expect(ownProfile).toContain("3rd-year Computer Science");
+
+    const idMatch = ownProfile.match(/seed=([\w-]+)"/);
+    expect(idMatch).toBeTruthy();
+    const ownerId = idMatch![1];
+
+    const stranger = new Visitor();
+    await stranger.signup("Another Stranger");
+    const publicView = await stranger.get(`/u/${ownerId}`);
+    expect(publicView).toContain("she/her");
+    expect(publicView).toContain("3rd-year Computer Science");
+  });
 });

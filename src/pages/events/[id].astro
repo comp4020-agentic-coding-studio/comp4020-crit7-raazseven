@@ -1,6 +1,6 @@
 ---
 import Layout from "../../layouts/Layout.astro";
-import { avatarUrl, eventCoverUrl, nameOf } from "../../lib/avatar";
+import { avatarUrl, categoryBadge, eventCoverUrl, nameOf } from "../../lib/avatar";
 import { companionView } from "../../lib/companion";
 import { getEvent, getEventTags, isInterested, listInterestedUsers } from "../../lib/db";
 import { formatWhen, isStartingSoon } from "../../lib/time";
@@ -30,12 +30,15 @@ const candidateCount =
     event ? (
       <Fragment>
         <div class="card md:flex md:items-start md:gap-6">
-          <img src={eventCoverUrl(event.id)} alt="" class="event-hero-cover" />
+          <img src={eventCoverUrl(event)} alt="" class="event-hero-cover" />
           <div class="mt-4 md:mt-0">
             <div class="flex items-start justify-between gap-2">
               <h1 class="!mt-0">{event.title}</h1>
               {isStartingSoon(event.startsAt) && <span class="badge">Starts soon</span>}
             </div>
+            <span class={`badge-category ${categoryBadge(event.category).className}`}>
+              {categoryBadge(event.category).label}
+            </span>
             <p class="text-slate-600">
               {formatWhen(event.startsAt)} · {event.location}
             </p>

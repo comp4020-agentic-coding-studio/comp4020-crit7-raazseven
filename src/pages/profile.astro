@@ -1,9 +1,15 @@
 ---
 import Layout from "../layouts/Layout.astro";
 import { avatarUrl } from "../lib/avatar";
+import { getProfileInterestTagIds, isProfileComplete, listTags } from "../lib/db";
 
 const user = Astro.locals.user;
 if (!user) return Astro.redirect("/login");
+
+const required = Astro.url.searchParams.has("required");
+const complete = isProfileComplete(user.id);
+const selectedInterestIds = getProfileInterestTagIds(user.id);
+const interestTags = listTags().filter((tag) => tag.kind === "interest");
 ---
 
 <Layout title="Your profile">
@@ -12,6 +18,16 @@ if (!user) return Astro.redirect("/login");
     This is what other attendees see when they look you up from an event's
     "who's going" list.
   </p>
+
+  {
+    !complete && (
+      <div class="callout mt-4">
+        {required
+          ? "Complete your profile before you go any further — add your pronouns, program, bio, and at least one interest."
+          : "Your profile isn't complete yet — add your pronouns, program, bio, and at least one interest."}
+      </div>
+    )
+  }
 
   <div class="card mt-4 flex flex-col gap-4">
     <div class="flex items-center gap-4">
@@ -33,6 +49,30 @@ if (!user) return Astro.redirect("/login");
           value={user.displayName ?? ""}
         />
       </div>
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div>
+          <label class="field-label" for="pronouns">Pronouns</label>
+          <input
+            id="pronouns"
+            name="pronouns"
+            class="text-input"
+            maxlength="30"
+            placeholder="e.g. she/her, he/him, they/them"
+            value={user.pronouns ?? ""}
+          />
+        </div>
+        <div>
+          <label class="field-label" for="program">Course / program</label>
+          <input
+            id="program"
+            name="program"
+            class="text-input"
+            maxlength="80"
+            placeholder="e.g. 2nd-year Computer Science"
+            value={user.program ?? ""}
+          />
+        </div>
+      </div>
       <div>
         <label class="field-label" for="bio">About you</label>
         <textarea
@@ -44,6 +84,26 @@ if (!user) return Astro.redirect("/login");
           placeholder="What you're studying, what you're into — anything that helps someone decide to ask you along."
           >{user.bio ?? ""}</textarea
         >
+      </div>
+      <div>
+        <span class="field-label">Interests</span>
+        <p class="mb-2 text-sm text-slate-500">Pick at least one — shown on your public profile.</p>
+        <div class="flex flex-wrap gap-2">
+          {
+            interestTags.map((tag) => (
+              <label class="tag-pill tag-pill-interest">
+                <input
+                  type="checkbox"
+                  name="tags"
+                  value={tag.id}
+                  checked={selectedInterestIds.includes(tag.id)}
+                  class="sr-only"
+                />
+                {tag.label}
+              </label>
+            ))
+          }
+        </div>
       </div>
       <button type="submit" class="btn-primary self-start">Save profile</button>
     </form>

@@ -17,6 +17,7 @@ import {
   events,
   interests,
   messages,
+  profileInterests,
   sessions,
   tags,
   userTags,
@@ -40,9 +41,6 @@ export const db = drizzle(client);
 // run them from. The flow: edit src/lib/schema.ts, `pnpm db:generate`,
 // commit the migration it writes to drizzle/.
 migrate(db, { migrationsFolder: "./drizzle" });
-
-seedIfEmpty();
-seedFakeProfilesIfEmpty();
 
 export type { Event, Message, Tag, User };
 
@@ -70,9 +68,19 @@ export function createUser(email: string, passwordHash: string, displayName: str
 
 export function updateProfile(
   userId: string,
-  { displayName, bio }: { displayName: string | null; bio: string | null },
+  {
+    displayName,
+    bio,
+    pronouns,
+    program,
+  }: {
+    displayName: string | null;
+    bio: string | null;
+    pronouns: string | null;
+    program: string | null;
+  },
 ): void {
-  db.update(users).set({ displayName, bio }).where(eq(users.id, userId)).run();
+  db.update(users).set({ displayName, bio, pronouns, program }).where(eq(users.id, userId)).run();
 }
 
 // --- sessions --------------------------------------------------------------
@@ -128,6 +136,51 @@ export function setUserTags(userId: string, tagIds: number[]): void {
       tx.insert(userTags).values({ userId, tagId }).run();
     }
   });
+}
+
+// --- profile interests -----------------------------------------------------
+
+// A user's own self-described interests, shown on their profile — distinct
+// from userTags above (their saved calendar filter): this says who they
+// are, that says what they want to see.
+export function getProfileInterestTagIds(userId: string): number[] {
+  return db
+    .select({ tagId: profileInterests.tagId })
+    .from(profileInterests)
+    .where(eq(profileInterests.userId, userId))
+    .all()
+    .map((row) => row.tagId);
+}
+
+export function getProfileInterestTags(userId: string): Tag[] {
+  return db
+    .select({ id: tags.id, label: tags.label, kind: tags.kind })
+    .from(tags)
+    .innerJoin(profileInterests, eq(profileInterests.tagId, tags.id))
+    .where(eq(profileInterests.userId, userId))
+    .all();
+}
+
+export function setProfileInterests(userId: string, tagIds: number[]): void {
+  db.transaction((tx) => {
+    tx.delete(profileInterests).where(eq(profileInterests.userId, userId)).run();
+    for (const tagId of tagIds) {
+      tx.insert(profileInterests).values({ userId, tagId }).run();
+    }
+  });
+}
+
+// The single source of truth for "has this person actually filled their
+// profile in" — checked at login (see src/middleware.ts) and shown as a
+// checklist on the profile page itself.
+export function isProfileComplete(userId: string): boolean {
+  const user = getUserById(userId);
+  if (!user) return false;
+  if (!user.displayName?.trim()) return false;
+  if (!user.bio?.trim()) return false;
+  if (!user.pronouns?.trim()) return false;
+  if (!user.program?.trim()) return false;
+  return getProfileInterestTagIds(userId).length > 0;
 }
 
 // --- events ----------------------------------------------------------------
@@ -421,44 +474,68 @@ export function maybeSendFakeReply(companionRequestId: number, otherUserId: stri
 // --- seed ------------------------------------------------------------------
 
 // There's no real ANU events feed and no "create an event" UI, so the
-// catalogue is a one-time seed of realistic ANU events. Dates are offsets
+// catalogue is a curated seed of realistic ANU events. Dates are offsets
 // from the moment of seeding (not fixed calendar dates) so the catalogue
-// still looks like an upcoming week whenever it's viewed. It only runs once
-// — reseeding on every boot would wipe real visitors' saved calendars and
-// interests if a Fly machine auto-restarts mid-week.
-function seedIfEmpty(): void {
-  const existing = db.select({ id: events.id }).from(events).limit(1).all();
-  if (existing.length > 0) return;
+// still looks like an upcoming week whenever it's viewed.
+//
+// Both ensureTags() and ensureEvents() below insert only what's missing (by
+// label / title) and run on *every* boot, not just once — a plain "seed if
+// the table is empty" guard would mean adding a new tag or event to the
+// arrays below silently does nothing once a database has already been
+// seeded (as production's already has). Existing rows are never touched, so
+// this is safe to run on every restart.
+const hoursFromNow = (n: number) => new Date(Date.now() + n * 60 * 60 * 1000).toISOString();
 
-  const hoursFromNow = (n: number) => new Date(Date.now() + n * 60 * 60 * 1000).toISOString();
+const seedTags: Array<{ label: string; kind: "course" | "interest" }> = [
+  { label: "COMP4020", kind: "course" },
+  { label: "COMP2100", kind: "course" },
+  { label: "COMP1730", kind: "course" },
+  { label: "Postgrad", kind: "course" },
+  { label: "Undergrad", kind: "course" },
+  { label: "COMP1100", kind: "course" },
+  { label: "COMP2620", kind: "course" },
+  { label: "COMP3120", kind: "course" },
+  { label: "COMP8420", kind: "course" },
+  { label: "Honours", kind: "course" },
+  { label: "Sport", kind: "interest" },
+  { label: "Music", kind: "interest" },
+  { label: "Careers", kind: "interest" },
+  { label: "Food", kind: "interest" },
+  { label: "Arts", kind: "interest" },
+  { label: "Research", kind: "interest" },
+  { label: "Social", kind: "interest" },
+  { label: "Environment", kind: "interest" },
+  { label: "Gaming", kind: "interest" },
+  { label: "Photography", kind: "interest" },
+  { label: "Outdoors", kind: "interest" },
+  { label: "Volunteering", kind: "interest" },
+  { label: "Coffee", kind: "interest" },
+  { label: "Wellbeing", kind: "interest" },
+  { label: "Board Games", kind: "interest" },
+  { label: "Dance", kind: "interest" },
+];
 
-  const seedTags: Array<{ label: string; kind: "course" | "interest" }> = [
-    { label: "COMP4020", kind: "course" },
-    { label: "COMP2100", kind: "course" },
-    { label: "COMP1730", kind: "course" },
-    { label: "Postgrad", kind: "course" },
-    { label: "Undergrad", kind: "course" },
-    { label: "Sport", kind: "interest" },
-    { label: "Music", kind: "interest" },
-    { label: "Careers", kind: "interest" },
-    { label: "Food", kind: "interest" },
-    { label: "Arts", kind: "interest" },
-    { label: "Research", kind: "interest" },
-    { label: "Social", kind: "interest" },
-    { label: "Environment", kind: "interest" },
-  ];
+function ensureTags(): void {
+  const existingLabels = new Set(db.select({ label: tags.label }).from(tags).all().map((t) => t.label));
+  const missing = seedTags.filter((tag) => !existingLabels.has(tag.label));
+  if (missing.length === 0) return;
 
-  type SeedEvent = {
-    title: string;
-    description: string;
-    location: string;
-    category: string;
-    hoursFromNow: number;
-    durationHours: number;
-    tagLabels: string[];
-  };
+  db.transaction((tx) => {
+    for (const tag of missing) tx.insert(tags).values(tag).run();
+  });
+}
 
-  const seedEvents: SeedEvent[] = [
+type SeedEvent = {
+  title: string;
+  description: string;
+  location: string;
+  category: string;
+  hoursFromNow: number;
+  durationHours: number;
+  tagLabels: string[];
+};
+
+const seedEvents: SeedEvent[] = [
     {
       title: "COMP4020 studio crit",
       description: "Weekly crit session — bring your deployed prototype.",
@@ -594,16 +671,107 @@ function seedIfEmpty(): void {
       durationHours: 3,
       tagLabels: ["Food", "Social"],
     },
+    {
+      title: "ANU Soccer social comp",
+      description: "Mixed-ability five-a-side games, no experience needed.",
+      location: "ANU Sport & Fitness Centre",
+      category: "sport",
+      hoursFromNow: 280,
+      durationHours: 2,
+      tagLabels: ["Sport", "Social"],
+    },
+    {
+      title: "Board game night at Kambri",
+      description: "Casual board games and card games, all welcome.",
+      location: "Kambri Cultural Centre",
+      category: "social",
+      hoursFromNow: 300,
+      durationHours: 3,
+      tagLabels: ["Board Games", "Social"],
+    },
+    {
+      title: "ANUSA Hackathon: build something in 24 hours",
+      description: "Team up and ship a project in a weekend, mentors on hand.",
+      location: "Hanna Neumann Building",
+      category: "club",
+      hoursFromNow: 320,
+      durationHours: 24,
+      tagLabels: ["COMP1100", "COMP2620", "Undergrad", "Postgrad"],
+    },
+    {
+      title: "Sunrise yoga on Sullivans Creek",
+      description: "Gentle outdoor yoga session, mats provided.",
+      location: "Sullivans Creek, near Kambri",
+      category: "sport",
+      hoursFromNow: 340,
+      durationHours: 1,
+      tagLabels: ["Sport", "Wellbeing"],
+    },
+    {
+      title: "Coffee & chat: casual meetup",
+      description: "Drop in for coffee and easy conversation, no agenda.",
+      location: "Coffee Grounds, Union Court",
+      category: "social",
+      hoursFromNow: 360,
+      durationHours: 1.5,
+      tagLabels: ["Coffee", "Social"],
+    },
+    {
+      title: "Campus volunteering working bee",
+      description: "Help tidy up campus green spaces, gloves and tools supplied.",
+      location: "Sullivans Creek Reserve",
+      category: "social",
+      hoursFromNow: 380,
+      durationHours: 3,
+      tagLabels: ["Volunteering", "Environment", "Social"],
+    },
+    {
+      title: "ANU Esports gaming night",
+      description: "Casual and competitive gaming, consoles and PCs set up.",
+      location: "Kambri, Level 2",
+      category: "club",
+      hoursFromNow: 400,
+      durationHours: 3,
+      tagLabels: ["Gaming", "Social"],
+    },
+    {
+      title: "Sunset hike: Black Mountain trail",
+      description: "Group hike up Black Mountain, back in time for sunset.",
+      location: "Meet at Black Mountain car park",
+      category: "social",
+      hoursFromNow: 420,
+      durationHours: 2.5,
+      tagLabels: ["Outdoors", "Sport", "Social"],
+    },
+    {
+      title: "International food festival",
+      description: "Student clubs cook up dishes from home, all proceeds to charity.",
+      location: "Union Court",
+      category: "social",
+      hoursFromNow: 440,
+      durationHours: 4,
+      tagLabels: ["Food", "Social"],
+    },
+    {
+      title: "Open mic night at Molly's",
+      description: "Sign up on the night, any instrument or none at all.",
+      location: "Molly's, Lonsdale Street",
+      category: "club",
+      hoursFromNow: 460,
+      durationHours: 2,
+      tagLabels: ["Music", "Arts", "Social"],
+    },
   ];
 
-  db.transaction((tx) => {
-    const tagIdByLabel = new Map<string, number>();
-    for (const tag of seedTags) {
-      const row = tx.insert(tags).values(tag).returning().get();
-      tagIdByLabel.set(tag.label, row.id);
-    }
+function ensureEvents(): void {
+  const existingTitles = new Set(db.select({ title: events.title }).from(events).all().map((e) => e.title));
+  const missing = seedEvents.filter((event) => !existingTitles.has(event.title));
+  if (missing.length === 0) return;
 
-    for (const seedEvent of seedEvents) {
+  db.transaction((tx) => {
+    const tagIdByLabel = new Map(tx.select({ id: tags.id, label: tags.label }).from(tags).all().map((t) => [t.label, t.id]));
+
+    for (const seedEvent of missing) {
       const row = tx
         .insert(events)
         .values({
@@ -627,8 +795,9 @@ function seedIfEmpty(): void {
 // Companion profiles nobody can log in as (no email/password), so the
 // social features have visible activity from the start instead of an empty
 // "nobody's going yet" everywhere. Gated on its own guard (isFake users, not
-// events) — the events table is already seeded on a live deploy, so tying
-// this to seedIfEmpty's guard would mean it never runs there.
+// events) — the events table is seeded separately by ensureEvents(), so
+// tying this to that guard would mean it never runs on an already-seeded
+// deploy.
 function seedFakeProfilesIfEmpty(): void {
   const existing = db.select({ id: users.id }).from(users).where(eq(users.isFake, true)).limit(1).all();
   if (existing.length > 0) return;
@@ -674,3 +843,95 @@ function seedFakeProfilesIfEmpty(): void {
     });
   });
 }
+
+const FAKE_PRONOUNS = ["she/her", "he/him", "they/them"];
+
+const FAKE_PROGRAMS = [
+  "2nd-year Computer Science",
+  "Postgrad, Engineering",
+  "3rd-year Fine Arts",
+  "Law student",
+  "PhD, Artificial Intelligence",
+  "1st-year, undecided major",
+  "2nd-year Health Science",
+  "Bachelor of Music",
+  "3rd-year Environmental Science",
+  "Postgrad, Business",
+  "1st-year Arts",
+  "3rd-year Computer Science",
+  "Bachelor of Music",
+  "Research Assistant, School of Computing",
+  "2nd-year Computer Science",
+  "1st-year, exchange student",
+];
+
+const FAKE_INTEREST_LABELS: string[][] = [
+  ["Social", "Research"],
+  ["Sport", "Careers"],
+  ["Photography", "Coffee"],
+  ["Music", "Social"],
+  ["Research", "Careers"],
+  ["Social", "Gaming"],
+  ["Sport", "Wellbeing"],
+  ["Music", "Arts"],
+  ["Environment", "Volunteering"],
+  ["Careers", "Social"],
+  ["Food", "Social"],
+  ["Careers", "Gaming"],
+  ["Music", "Arts"],
+  ["Research", "Coffee"],
+  ["Board Games", "Gaming"],
+  ["Social", "Coffee"],
+];
+
+// Backfills pronouns/program/interest-tags for any isFake user missing them
+// — runs on every boot, same idempotent shape as ensureTags/ensureEvents, so
+// it also completes the fake profiles already sitting on a deployed
+// database rather than only ones seeded fresh going forward.
+function ensureFakeProfileDetails(): void {
+  const fakeUsers = db
+    .select()
+    .from(users)
+    .where(eq(users.isFake, true))
+    .orderBy(asc(users.createdAt))
+    .all();
+  if (fakeUsers.length === 0) return;
+
+  const tagIdByLabel = new Map(db.select({ id: tags.id, label: tags.label }).from(tags).all().map((t) => [t.label, t.id]));
+
+  db.transaction((tx) => {
+    fakeUsers.forEach((user, idx) => {
+      if (!user.pronouns?.trim() || !user.program?.trim()) {
+        tx.update(users)
+          .set({
+            pronouns: user.pronouns?.trim() || FAKE_PRONOUNS[idx % FAKE_PRONOUNS.length],
+            program: user.program?.trim() || FAKE_PROGRAMS[idx % FAKE_PROGRAMS.length],
+          })
+          .where(eq(users.id, user.id))
+          .run();
+      }
+
+      const hasInterests = tx
+        .select({ tagId: profileInterests.tagId })
+        .from(profileInterests)
+        .where(eq(profileInterests.userId, user.id))
+        .limit(1)
+        .all();
+      if (hasInterests.length === 0) {
+        const labels = FAKE_INTEREST_LABELS[idx % FAKE_INTEREST_LABELS.length];
+        for (const label of labels) {
+          const tagId = tagIdByLabel.get(label);
+          if (tagId) tx.insert(profileInterests).values({ userId: user.id, tagId }).run();
+        }
+      }
+    });
+  });
+}
+
+// Runs once every boot, after every function above it is defined (const seed
+// data is not hoisted, unlike the functions themselves) — see each
+// function's own comment for why this is safe to run unconditionally.
+ensureTags();
+ensureEvents();
+seedFakeProfilesIfEmpty();
+ensureFakeProfileDetails();

@@ -1,9 +1,14 @@
 import type { APIContext } from "astro";
 import { defineMiddleware } from "astro:middleware";
-import { getSessionUser } from "./lib/db";
+import { getSessionUser, isProfileComplete } from "./lib/db";
 
 export const COOKIE = "sid";
 const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365;
+
+// Paths a logged-in-but-incomplete user must still be able to reach: the
+// completeness gate below would otherwise trap them (can't submit the form
+// that completes their profile) or lock them out of logging out.
+const PROFILE_GATE_ALLOWLIST = ["/profile", "/login", "/signup", "/readme/"];
 
 // Real accounts now (see src/lib/auth.ts) — the cookie names a session, not
 // an identity, so a missing/expired session just means "logged out", not
@@ -18,6 +23,16 @@ export const onRequest = defineMiddleware((context, next) => {
   }
 
   context.locals.user = user ?? null;
+
+  if (user && !isProfileComplete(user.id)) {
+    const path = context.url.pathname;
+    const isAllowlisted =
+      path.startsWith("/api/") || PROFILE_GATE_ALLOWLIST.includes(path) || path.includes(".");
+    if (!isAllowlisted) {
+      return context.redirect("/profile?required=1");
+    }
+  }
+
   return next();
 });
 

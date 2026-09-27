@@ -181,3 +181,15 @@ describe("calendar: chatting with a companion", () => {
     );
   });
 });
+
+describe("calendar: the expanded tag and event catalogue", () => {
+  it("offers newly-added course/interest tags in the filter, and a newly-added event on the homepage", async () => {
+    const visitor = new Visitor();
+    await visitor.signup("Catalogue Checker");
+
+    const home = await visitor.get("/");
+    expect(home).toContain("COMP1100");
+    expect(home).toContain("Board Games");
+    expect(home).toContain("Board game night at Kambri");
+  });
+});

@@ -1,7 +1,7 @@
 ---
 import Layout from "../../layouts/Layout.astro";
 import { avatarUrl } from "../../lib/avatar";
-import { getUserById } from "../../lib/db";
+import { getProfileInterestTags, getUserById } from "../../lib/db";
 
 const id = Astro.params.id ?? "";
 const profile = getUserById(id);
@@ -9,6 +9,8 @@ const profile = getUserById(id);
 if (!profile) {
   Astro.response.status = 404;
 }
+
+const interestTags = profile ? getProfileInterestTags(profile.id) : [];
 
 const memberSince = profile
   ? new Date(profile.createdAt).toLocaleDateString("en-AU", { month: "long", year: "numeric" })
@@ -23,11 +25,22 @@ const isYou = Astro.locals.user?.id === id;
         <div class="card flex items-center gap-4">
           <img src={avatarUrl(profile.id)} alt={`${profile.displayName ?? "This attendee"}'s avatar`} class="avatar-lg" />
           <div>
-            <h1 class="!mt-0">{profile.displayName ?? "No name set yet"}</h1>
+            <h1 class="!mt-0">
+              {profile.displayName ?? "No name set yet"}
+              {profile.pronouns && <span class="text-base font-normal text-slate-500"> ({profile.pronouns})</span>}
+            </h1>
+            {profile.program && <p class="text-sm text-slate-600">{profile.program}</p>}
             <p class="text-sm text-slate-500">Member since {memberSince}</p>
           </div>
         </div>
         {profile.bio && <p class="mt-4 whitespace-pre-line">{profile.bio}</p>}
+        {interestTags.length > 0 && (
+          <div class="mt-4 flex flex-wrap gap-2">
+            {interestTags.map((tag) => (
+              <span class="tag-pill tag-pill-interest">{tag.label}</span>
+            ))}
+          </div>
+        )}
         {isYou && (
           <p class="mt-4">
             <a href="/profile">This is you — edit your profile →</a>
