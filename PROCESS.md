@@ -1,9 +1,5 @@
 # Process overview
 
-<!-- TEMPLATE: this file is a shape to fill in, not a form. Replace everything
-     in it with your own overview, and delete this comment — `pnpm
-     check:evidence` will remind you if it's still here. -->
-
 Written by you, for a reader: how you got from the brief to the harness and
 agentic workflow behind this submission. Markers read this file and follow its
 citations; they don't trawl the repo for evidence you didn't point at.
@@ -16,32 +12,60 @@ cover every deliverable.
 
 ## What I built
 
-A sentence or two. `README.md` is where the account of what the app is and what
-good means here lives; this file is how you got there.
+An ANU events tool that's about who you go with, not just what's on: sign up,
+mark yourself as going to an event, see who else is going, and ask a specific
+attendee to go together. `README.md` has the full account of what the app is
+and what good means here.
 
 ## How I got here
 
-The account of the process: how the work actually went, and how you knew the
-result was right. Tell it in whatever order makes it clear. A weekly prototype
-needs a paragraph or two; an assignment needs more.
+The starter I settled onto was a plain anonymous ANU events calendar — browse,
+filter by tag, mark "interested," see who else was. Before building on it I
+checked it against the real thing it was modelling
+(`https://www.anu.edu.au/events/calendar`) and it did exactly the same job: a
+read-only listing. That's not a slice of a system worth shipping, it's a
+worse mirror of one that already exists.
 
-Cite the record as you go, as links whose text is the commit hash or range and
-whose target is this repo's commit or compare URL, so a reader clicks straight
-to the evidence:
+> i juxt searhced anu websute https://www.anu.edu.au/events/calendar and it
+> does exact same thing as our current website . so make it ore realted to
+> meeting new people to go tot eh evnt with so it should have a login and
+> sign up and you should be able to mark as going to event and see who
+> others are going and be able to ask to them if they are gping , like make
+> everyone has a profile and according to profile you can ask people who are
+> goignt o the event accompany you.
 
-- one commit: [`a1b2c3d`](https://github.com/YOUR-ORG/YOUR-REPO/commit/a1b2c3d)
-- a range:
-  [`a1b2c3d...e4f5a6b`](https://github.com/YOUR-ORG/YOUR-REPO/compare/a1b2c3d...e4f5a6b)
+That reframed the slice: not "what events exist" but "who's going, and can I
+go with them." That needs real identity (an anonymous cookie can't carry a
+standing relationship between two people), so the schema grew a real accounts
+table (email + password, sessions) and a new `companion_requests` table —
+one user asking another to go to a specific event together, `pending` /
+`accepted` / `declined`, scoped per event rather than a general friends
+system. Browsing stayed open to anonymous visitors; only the social actions
+(going, attendee profiles, asking to go together) sit behind login, so the
+shipped anonymous-access invariants test keeps passing.
 
-To pair a prompt with the commit it produced, quote the prompt (curated, not a
-full transcript) next to the citation:
+> continue with above prompt also make sure use astro stack or something
+> better stack so the website look beautiful
 
-> the prompt, verbatim
+I kept the course-fixed stack (Astro SSR, Drizzle, SQLite, Fly) — that
+infrastructure isn't mine to swap — and added Tailwind CSS for the visual
+pass instead of migrating anything.
 
-Screenshots are welcome where one carries the point better than a sentence does.
-Commit the file to this repo and link it with a **relative** path, which is what
-makes it render on GitHub: `![alt text](docs/before.png)`. Images don't count
-towards the word count and don't replace the citation.
+Grounding this against the shipped spec test (`spec/invariants.test.ts`) is
+what caught two real mistakes rather than take my own word for it: an axe
+`heading-order` violation from an `<h3>` I'd put on event cards with no `<h2>`
+in between (fixed by making it a styled paragraph, not a heading — it wasn't
+semantically a heading in the first place), and a companion-request test that
+failed for a non-obvious reason — an earlier test had left a *different* Bob
+still marked "going" to the same event, so my new test's "first attendee link
+on the page" grabbed the wrong user's id. The fix was giving that test its
+own event rather than sharing state with an earlier one. Both are visible in
+the same commit as the feature, since I ran `pnpm check` (typecheck + build +
+the full spec suite) before considering it done rather than after.
+
+[`220c839`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-raazseven/commit/220c839)
+is the whole pivot: schema, auth, profiles, going/companion-request flow, nav,
+and the Tailwind restyle.
 
 ## Before you ship
 
