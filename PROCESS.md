@@ -13,9 +13,12 @@ cover every deliverable.
 ## What I built
 
 An ANU events tool that's about who you go with, not just what's on: sign up,
-mark yourself as going to an event, see who else is going, and ask a specific
-attendee to go together. `README.md` has the full account of what the app is
-and what good means here.
+build a complete profile (pronouns, program, bio, interest tags), browse a
+catalogue of events across a dozen categories with photos that actually match
+what the event is, mark yourself as going, see who else is going, ask a
+specific attendee to go together (or swipe through seeded "already going"
+profiles the same way), and chat once you've matched. `README.md` has the full
+account of what the app is and what good means here.
 
 ## How I got here
 
@@ -66,6 +69,86 @@ the full spec suite) before considering it done rather than after.
 [`220c839`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-raazseven/commit/220c839)
 is the whole pivot: schema, auth, profiles, going/companion-request flow, nav,
 and the Tailwind restyle.
+
+The pivot made the *mechanism* work — you could ask someone to go together —
+but the app still looked and felt like a form, and cold-starting a social app
+with zero other users on it means there's never anyone to actually ask.
+
+> Other few things to maek note of make the site responsive as in includes
+> breakpoints so everything looks good. Also add some pictures of AI gen or
+> from the internet as it should look more like firend building we site make
+> it feel welcoming and friendly. You could also add some fake profiles
+> present like 10 to 20 fake profiles which are already intrested in going
+> for ost of the even and you could either right of left swipe them like a
+> dating pp to go to the event.
+
+That became real Tailwind breakpoints instead of a single fixed layout,
+DiceBear-illustrated avatars and Picsum event cover photos in place of blank
+placeholders, ~16 seeded "companion" profiles pre-marked as going to most
+events so a brand-new visitor always has someone to find, and a
+`/events/[id]/discover` swipe page (left/right, dating-app style) for asking
+one of them to go together instead of hunting through a plain attendee list.
+Shipped as
+[`cfd17ad`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-raazseven/commit/cfd17ad).
+
+> all the photos are rnadomly assigned i wante dthe right images for right
+> events but dont worry about the events i want the site in general to look
+> more welocming as having background picture if wesite as firends hanging
+> out together and have a dedicated chat with friends who you asked
+
+I split this: the "right photo for the right event" half needed a real
+keyword-matching lookup, which was a bigger job than the rest, so I deferred
+it (see `df3cf3d` below) and shipped the parts that stood on their own — a
+welcoming homepage hero photo of friends together, and a real `/chat/[id]`
+thread once two people are "going together," instead of the ask/accept flow
+being the end of the interaction. Shipped as
+[`f8852e6`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-raazseven/commit/f8852e6).
+
+> deo all the feature work like chat and are those in the datbase create
+> automated test to test all the feature sand tst them out thorughly
+
+By this point the feature surface (auth, profile edits, going/companion-
+request/chat, seeded-profile matching) was ahead of its test coverage, so this
+pass was pure hardening: a shared `spec/visitor.ts` `Visitor` helper (one
+cookie-jar actor per test, mirroring a real browser) extracted out of the
+calendar spec so every subsequent test file could drive the same running
+server the same way, plus new coverage for auth edge cases, profile
+persistence (including that a second, unrelated visitor really does see the
+saved changes — not just session state), and companion-request/chat paths
+against both real users and seeded fake profiles. Shipped as
+[`a525f00`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-raazseven/commit/a525f00).
+
+> so add more course and filter options and also add more events. and all
+> the photos you used in the events dont use it randomly use it acccording
+> to context as in if its a basketball event insert a photo form internet of
+> a basketball, like that also make it more graphic and vibrant colour so it
+> looks like a friendly app where you can fnd real epope to go with also in
+> profile add more things like intrest tags and more thing about the person
+> amke it a complete profile and when logining in make sure people have a
+> complete profile . and everything is in database
+
+This was the biggest single pass: more course and interest tags, ten more
+events, and the deferred contextual-photo lookup from `f8852e6` — event
+photos are now matched by keyword against the event's title (a basketball
+event gets a basketball photo), falling back to a per-category default
+instead of a random pick. Profiles grew pronouns, program, and self-described
+interest tags, all backed by real tables (`profileInterests`, extended
+`users` columns) rather than anything client-side. "Make sure people have a
+complete profile" became an actual gate: `src/middleware.ts` now redirects any
+logged-in user with an incomplete profile to `/profile?required=1` on every
+route except the handful needed to complete it. A vibrant gradient/badge
+redesign in `src/styles.css` covers the "more graphic and vibrant" ask.
+Existing seed data doesn't get re-seeded on restart, so all of this — new
+tags, new events, and backfilling pronouns/program/interests onto the
+already-live fake profiles — runs through idempotent, additive seed functions
+instead of the old "seed only if the events table is empty" guard, so it
+actually shows up for accounts created before this change too. One real test
+bug turned up while grounding this against `pnpm check`: a
+profile-completeness test asserted on the wording shown at `/profile`, but
+followed a bare `/profile` instead of the redirect's actual
+`/profile?required=1` target, so it saw the wrong copy — fixed by following
+the real redirect target, not the app logic. Shipped as
+[`df3cf3d`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-raazseven/commit/df3cf3d).
 
 ## Before you ship
 
